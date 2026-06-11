@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Airline Scheduling Expert System</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <header class="header">
+      <div class="wrap">
+        <div class="title">
+          <div class="h1">Airline Scheduling & Cargo Management</div>
+          <div class="sub">Rule-based Expert System (FOL-style predicates, chaining, unification)</div>
+        </div>
+        <div class="right">
+          <button id="btnRefresh" class="btn">Refresh</button>
+          <button id="btnSchedule" class="btn primary">Run Scheduling</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="wrap grid">
+      <section class="card">
+        <div class="cardHead">
+          <div>
+            <div class="cardTitle">Flights</div>
+            <div class="muted">Capacity, status (default on-time), and delays (events/weather)</div>
+          </div>
+        </div>
+        <div id="flightsTable" class="tableWrap"></div>
+        <div class="row gap">
+          <div class="pill">Weather</div>
+          <input id="weatherAirport" class="input" placeholder="Airport (e.g., DEL)" />
+          <select id="weatherCondition" class="input">
+            <option value="clear">clear</option>
+            <option value="storm">storm</option>
+          </select>
+          <button id="btnSetWeather" class="btn">Set Weather</button>
+        </div>
+        <div class="row gap">
+          <div class="pill">Delay event</div>
+          <input id="delayFlight" class="input" placeholder="Flight id (e.g., F102)" />
+          <input id="delayReason" class="input" placeholder="Reason (e.g., storm)" />
+          <button id="btnDelay" class="btn">Add Delay</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="cardHead">
+          <div>
+            <div class="cardTitle">Cargo</div>
+            <div class="muted">Priority + deadline + weight drive scheduling decisions</div>
+          </div>
+        </div>
+        <div id="cargoTable" class="tableWrap"></div>
+
+        <div class="divider"></div>
+        <div class="cardTitle small">Add Cargo</div>
+        <div class="formGrid">
+          <label class="label">Cargo id</label>
+          <input id="cargoId" class="input" placeholder="C4" />
+          <label class="label">Destination</label>
+          <input id="cargoDest" class="input" placeholder="DEL" />
+          <label class="label">Weight (kg)</label>
+          <input id="cargoWeight" class="input" placeholder="800" type="number" />
+          <label class="label">Priority</label>
+          <select id="cargoPriority" class="input">
+            <option value="urgent">urgent</option>
+            <option value="high">high</option>
+            <option value="normal" selected>normal</option>
+          </select>
+          <label class="label">Deadline (hour)</label>
+          <input id="cargoDeadline" class="input" placeholder="17" type="number" />
+        </div>
+        <div class="row right">
+          <button id="btnAddCargo" class="btn">Add Cargo</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="cardHead">
+          <div>
+            <div class="cardTitle">Query (Backward Chaining)</div>
+            <div class="muted">Example: <code>assigned(C1, ?F)</code> or <code>can_assign(C3, ?F)</code></div>
+          </div>
+        </div>
+        <div class="row gap">
+          <input id="queryText" class="input grow" placeholder="assigned(C1, ?F)" />
+          <button id="btnQuery" class="btn primary">Ask</button>
+        </div>
+        <div id="queryResult" class="mono box"></div>
+      </section>
+
+      <section class="card">
+        <div class="cardHead">
+          <div>
+            <div class="cardTitle">Unification (FOL Matching)</div>
+            <div class="muted">Try: <code>destination(?X, DEL)</code> with <code>destination(C1, DEL)</code></div>
+          </div>
+        </div>
+        <div class="formGrid">
+          <label class="label">Predicate A</label>
+          <input id="unifyA" class="input" placeholder="destination(?X, DEL)" />
+          <label class="label">Predicate B</label>
+          <input id="unifyB" class="input" placeholder="destination(C1, DEL)" />
+        </div>
+        <div class="row right">
+          <button id="btnUnify" class="btn">Unify</button>
+        </div>
+        <div id="unifyResult" class="mono box"></div>
+      </section>
+
+      <section class="card full">
+        <div class="cardHead">
+          <div>
+            <div class="cardTitle">Scheduling Output + Trace (Forward Chaining)</div>
+            <div class="muted">Shows derived facts and rule applications (explanation mode)</div>
+          </div>
+          <div class="row gap">
+            <label class="row gap small">
+              <input id="explainToggle" type="checkbox" checked />
+              Explanation mode
+            </label>
+          </div>
+        </div>
+        <div id="scheduleResult" class="mono box big"></div>
+      </section>
+    </main>
+
+    <footer class="footer wrap">
+      <div class="muted">
+        Tip: set weather to <b>storm</b> for an airport, then run scheduling again to see event/default overrides.
+      </div>
+    </footer>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
+

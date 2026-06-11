@@ -1,0 +1,282 @@
+Airline Scheduling and Cargo Management Expert System
+=====================================================
+
+This project is a small, beginner-friendly AI "Expert System" for airline cargo scheduling.
+It does NOT try to be a perfect airline optimizer. The goal is to show core AI concepts
+with clear code and easy-to-follow reasoning steps.
+
+
+1) What is an Expert System?
+----------------------------
+An Expert System is an AI program that:
+- stores expert knowledge as FACTS and RULES (knowledge base)
+- uses an INFERENCE ENGINE (reasoning) to derive new facts or answer questions
+- explains the reasoning (trace / explanation mode)
+
+In this project:
+- Facts describe flights, cargo, weather, events, etc.
+- Rules encode scheduling logic and constraints.
+- Forward chaining derives new facts like can_assign(Cargo, Flight).
+- Backward chaining answers queries like assigned(C1, ?F).
+
+
+2) Knowledge Representation used in this project
+------------------------------------------------
+We represent knowledge using FOL-style predicates.
+
+Example predicates (facts):
+  flight(F101)
+  destination(F101, DEL)
+  cargo(C1)
+  cargo_dest(C1, DEL)
+  weather(DEL, clear)
+
+Example predicates (derived facts):
+  same_destination(C1, F101)
+  can_assign(C1, F101)
+  assigned(C1, F101)
+
+These look like First-Order Logic (FOL) atoms:
+  predicate_name(argument1, argument2, ...)
+
+Where are they in code?
+- src/aes/terms.py : defines Predicate, Const, Var
+- src/aes/kb.py    : stores facts and rules
+
+
+3) Propositional Logic vs First-Order Logic (FOL)
+-------------------------------------------------
+Propositional Logic:
+- Each statement is a single symbol like P, Q, R
+- Example: P = "F101 is delayed"
+- You cannot easily express "for all flights" without writing many separate statements.
+
+First-Order Logic (FOL):
+- Has objects and relations: delayed(F101), destination(F101, DEL)
+- Has variables like ?F, ?C so a rule can work for many objects.
+
+Example FOL-style rule:
+  cargo(?C) AND flight(?F) AND same_destination(?C, ?F) -> can_assign(?C, ?F)
+
+This ONE rule works for all cargo and flights.
+
+
+4) Unification (core FOL matching)
+----------------------------------
+Unification is the process of finding variable substitutions that make two predicates match.
+
+Example:
+  Query pattern:  destination(?X, DEL)
+  Fact:           destination(F101, DEL)
+  Unification:    {?X = F101}
+
+Unification is used heavily in both forward chaining and backward chaining.
+
+Where is it in code?
+- src/aes/unification.py
+
+
+5) Rules (Horn clauses) in this project
+---------------------------------------
+We use Horn-style rules:
+  premise1 AND premise2 AND ... -> conclusion
+
+Example:
+  cargo_dest(?C, ?D) AND destination(?F, ?D) -> same_destination(?C, ?F)
+
+Where are rules defined?
+- src/aes/sample_data.py
+
+
+6) Forward Chaining (data-driven reasoning)
+------------------------------------------
+Forward chaining starts from known facts and repeatedly applies rules to derive new facts.
+
+In our project, forward chaining is used to derive things like:
+- same_destination(C1, F101)
+- can_assign(C1, F101)
+- delayed(F103) if weather risk exists
+
+Why forward chaining is useful here:
+- Scheduling needs "all possible options" (all can_assign facts).
+- So we compute consequences from the dataset.
+
+Where is it in code?
+- src/aes/inference.py (InferenceEngine.forward_chain)
+
+
+7) Backward Chaining (goal-driven reasoning)
+-------------------------------------------
+Backward chaining starts from a goal (a query) and tries to prove it.
+
+Example query:
+  assigned(C1, ?F)
+
+The engine tries:
+- Is assigned(C1, ?F) already a known fact?
+- If not, can a rule produce assigned(...)?
+  (Then it tries to prove the rule's premises.)
+
+Backward chaining is useful for:
+- Question answering and explanation.
+
+Where is it in code?
+- src/aes/inference.py (InferenceEngine.ask + _prove)
+
+
+8) Resolution-based inference (simplified conflict checking)
+-----------------------------------------------------------
+Full resolution usually involves converting logic to CNF and refuting contradictions.
+That is complex for a beginner project.
+
+So we implement a simplified resolution idea:
+- If we have both P(...) and not_P(...) then there is a contradiction (conflict).
+
+Example:
+  on_time(F101) and not_on_time(F101) -> conflict
+
+Where is it in code?
+- src/aes/inference.py (find_conflicts)
+- src/aes/sample_data.py includes a rule:
+  delayed(?F) -> not_on_time(?F)
+
+
+9) Default reasoning (reasoning with default information)
+---------------------------------------------------------
+Humans often assume defaults:
+  "Flights are on time unless we know they are delayed."
+
+This is called default reasoning and is related to non-monotonic reasoning:
+If new information arrives (a delay), the old default might no longer hold.
+
+In this project:
+- We automatically add on_time(F) for each flight(F) as a DEFAULT.
+- If delayed(F) becomes true, we remove on_time(F) (exception overrides default).
+
+Where is it in code?
+- src/aes/kb.py : apply_defaults() and apply_exception_overrides()
+
+
+10) Ontology basics (ontological engineering)
+---------------------------------------------
+An ontology is a structured way to define:
+- categories/classes (Aircraft, Cargo, Airport, WeatherCondition)
+- relationships (subclass_of, instance_of, operates_between)
+
+We keep it simple:
+- class(Aircraft), class(Cargo), ...
+- subclass_of(Flight, Aircraft)
+- instance_of(F101, Flight)
+- operates_between(F101, PUNE, DEL)
+
+This helps show "categories and objects" representation.
+
+Where is it in code?
+- src/aes/sample_data.py (ontology facts)
+
+
+11) Events and reasoning
+------------------------
+An event is something that happens in the world and changes what is true.
+
+We represent an event as a fact:
+  event_delay(F102, storm)
+
+Then we have a rule:
+  event_delay(?F, ?Reason) -> delayed(?F)
+
+This shows event-based reasoning: events cause state changes.
+
+Where is it in code?
+- src/aes/sample_data.py (rules)
+- CLI / Web UI: user can add delay events
+
+
+12) Mental objects + Modal Logic (very basic simulation)
+--------------------------------------------------------
+Modal logic introduces ideas like beliefs/knowledge (BELIEVES, KNOWS).
+
+We do NOT implement full modal logic here.
+We only simulate the idea with a normal predicate:
+  agent(dispatcherAI)
+
+And a rule that acts like a policy:
+  cargo_priority(?C, urgent) AND agent(dispatcherAI) -> treat_as_high(?C)
+
+This is a "conceptual" mental-object demonstration: the agent’s policy influences behavior.
+
+
+13) How scheduling is done in this project (overall working)
+------------------------------------------------------------
+Step A: Initial facts
+- flights, cargo, weather, and ontology facts are loaded (sample_data.py)
+
+Step B: Numeric constraints are injected (environment/perception facts)
+Our FOL engine does not do arithmetic comparisons like <=.
+So we compute two facts using Python and add them to the KB:
+- fits_in(C, F): cargo weight <= remaining capacity of flight
+- meets_deadline(C, F): flight depart_hour <= cargo deadline_hour
+
+This is realistic: expert systems often combine symbolic rules with numeric checks.
+
+Where is it in code?
+- src/aes/scheduler.py (inject_numeric_constraints)
+
+Step C: Forward chaining derives can_assign
+Using rules like:
+  cargo(C) AND flight(F) AND same_destination(C,F) AND fits_in(C,F)
+  AND meets_deadline(C,F) AND on_time(F)
+  -> can_assign(C,F)
+
+Step D: Greedy assignment
+After can_assign facts exist, the scheduler:
+- sorts cargo by priority (urgent first), then deadline, then weight
+- picks the best flight among candidates (earliest departure)
+- adds assigned(C,F)
+- reduces remaining_capacity_kg(F)
+
+Then it continues for the next cargo.
+
+Where is it in code?
+- src/aes/scheduler.py (schedule_cargo)
+
+Step E: Explanation / trace output
+When enabled, the system prints:
+- which defaults were used
+- which rules were applied
+- what new facts were derived
+- scheduling decisions and capacity updates
+
+Where is it in code?
+- src/aes/inference.py (TraceStep)
+- src/aes/scheduler.py (trace list)
+
+
+14) How to use the system
+-------------------------
+CLI version:
+- Run:  python -m src.main
+- Options let you add cargo, set weather, add delay events, schedule, and query.
+
+Web UI version:
+- Run:  python web/server.py
+- Open browser at: http://127.0.0.1:8000/
+- You get the same actions in a simple UI:
+  - view flights/cargo
+  - add cargo
+  - set weather
+  - delay a flight
+  - run scheduling + see trace
+  - query + see backward chaining proof trace
+  - unification demo
+
+
+15) What to write in your assignment conclusion
+------------------------------------------------
+- We successfully represented airline scheduling knowledge using FOL-like predicates.
+- We implemented unification, forward chaining, and backward chaining.
+- We demonstrated default reasoning with exceptions (on_time unless delayed).
+- We used event facts and rules to simulate real-world changes (delay events).
+- We included a simple ontology (classes, instances, relations).
+- The system provides explanation traces, making it transparent and educational.
+
