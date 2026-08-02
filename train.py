@@ -32,7 +32,7 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.cuda.amp import GradScaler, autocast
+from torch.amp import GradScaler, autocast
 from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
 from torchvision import transforms
 from PIL import Image
@@ -149,7 +149,7 @@ def run_epoch(model, loader, criterion, optimizer=None, scaler=None, device='cud
 
             if is_train:
                 optimizer.zero_grad(set_to_none=True)
-                with autocast(enabled=device == 'cuda'):
+                with autocast(device_type='cuda', enabled=(device.type == 'cuda')):
                     logits = model(imgs)
                     loss = criterion(logits, labels)
                 scaler.scale(loss).backward()
@@ -158,7 +158,7 @@ def run_epoch(model, loader, criterion, optimizer=None, scaler=None, device='cud
                 scaler.step(optimizer)
                 scaler.update()
             else:
-                with autocast(enabled=device == 'cuda'):
+                with autocast(device_type='cuda', enabled=(device.type == 'cuda')):
                     logits = model(imgs)
                     loss = criterion(logits, labels)
 
@@ -218,7 +218,7 @@ def main():
 
     model = DeepfakeDetector(pretrained=True, freeze_layers=3).to(device)
     criterion = LabelSmoothCE(0.1)
-    scaler = GradScaler(enabled=torch.cuda.is_available())
+    scaler = GradScaler(device='cuda', enabled=(device.type == 'cuda'))
 
     backbone_params = list(model.spatial_backbone.parameters())
     head_params = list(model.attention.parameters()) + list(model.freq.parameters()) + list(model.classifier.parameters())

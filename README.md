@@ -8,12 +8,19 @@ a Flask backend for training/inference and a browser UI for uploading images or 
 deep_fake/
 ├── model.py         # the network architecture (shared by train.py and app.py)
 ├── train.py         # trains on your dataset, saves checkpoints/best_model.pt
+├── evaluate.py      # scores a checkpoint on a held-out test/ split
 ├── app.py           # Flask server: serves the site + prediction API
 ├── index.html       # the website (upload UI, results, spectrum readout)
 ├── style.css        # external stylesheet
 ├── script.js        # external JavaScript
 └── requirements.txt
 ```
+
+> Note: there are two virtualenvs in this repo. **`venv/` is the CUDA one**
+> (torch 2.6.0+cu124, GPU available) — always activate `venv` before running
+> anything. `.venv/` is CPU-only and the system `python` has no torch at all.
+> The system Python (3.12.10) on PATH has no torch; `python app.py` will only
+> work inside an activated venv.
 
 ---
 
@@ -93,6 +100,28 @@ Once that finishes without errors, launch the real run. This writes:
 
 Training time depends entirely on dataset size and GPU. As a reference point, a few
 thousand images per class on a single mid-range GPU is typically minutes-to-an-hour per epoch.
+
+---
+
+## Step 3b — Evaluate on a held-out test set
+
+Validation numbers can flatter a model; the real test is scoring images it never saw.
+If your dataset has a `test/` split (same `real/` / `fake/` layout, or falls back to
+`val/` / `valid/`), run:
+
+```bash
+python evaluate.py --data_root /path/to/your_dataset --checkpoint checkpoints/best_model.pt
+```
+
+Reports test accuracy, ROC-AUC, F1, per-class precision/recall, plus example and
+worst-misclassified predictions so you can eyeball sanity. Useful flags:
+
+| Flag | Default | Purpose |
+|---|---|---|
+| `--max_samples` | none | evaluate on a subset (quick speed check first) |
+| `--batch_size` | 32 | lower if you hit out-of-memory |
+| `--examples` | 10 | how many example predictions to print |
+
 
 ---
 
