@@ -162,10 +162,14 @@ You'll see:
 ```
 Loaded checkpoint: checkpoints/best_model.pt
 Checkpoint val metrics: {...}
- * Running on http://127.0.0.1:5000
+ * Running on http://0.0.0.0:5000
 ```
 
-Open **http://127.0.0.1:5000** in your browser.
+Open **http://127.0.0.1:5000** in your browser. The server binds to
+`0.0.0.0` (all interfaces) so it is reachable from other machines and cloud
+hosts; it also honors the `PORT` environment variable used by platforms like
+Render (run `python app.py --checkpoint checkpoints/best_model.pt` with no
+`--host`/`--port` and it will pick up Render's `$PORT` automatically).
 
 ---
 
@@ -187,16 +191,22 @@ Other useful endpoints:
 
 ## Optional — Deploying beyond your own machine
 
-By default the server only listens on `127.0.0.1` (your machine only). To make it
-reachable on your local network:
+By default the server binds to `0.0.0.0` and honors the `PORT` environment
+variable (falling back to 5000), so a plain
+
+```bash
+python app.py --checkpoint checkpoints/best_model.pt
+```
+
+works unchanged on hosts like Render. To override either value explicitly:
 
 ```bash
 python app.py --checkpoint checkpoints/best_model.pt --host 0.0.0.0 --port 5000
 ```
 
-For a real public deployment, put this behind a production WSGI server (e.g. `gunicorn`)
-and a reverse proxy (e.g. nginx), and don't run Flask's built-in dev server directly —
-happy to help set that up if/when you get there.
+For a high-traffic public deployment, put this behind a production WSGI server
+(e.g. `gunicorn`) and a reverse proxy (e.g. nginx), and don't run Flask's
+built-in dev server directly — happy to help set that up if/when you get there.
 
 ---
 
@@ -207,6 +217,12 @@ happy to help set that up if/when you get there.
 - **CUDA out of memory** — lower `--batch_size` (try 16 or 8).
 - **`model_loaded: false` on `/api/health`** — the checkpoint path passed to `app.py`
   is wrong or the file is corrupted; re-check the `--checkpoint` argument.
+- **Render: "No open ports detected" then `Exited with status 137`** — the process was
+  killed, almost always out-of-memory on the free/starter 512MB tier. `app.py` already
+  caps torch's thread pools, loads the checkpoint with `mmap=True`, and binds to
+  `0.0.0.0` + `$PORT`; make sure your Render start command is exactly
+  `python app.py --checkpoint checkpoints/best_model.pt`. If it still OOMs, upgrade the
+  instance to Standard (2GB) — a 235MB checkpoint + torch on 512MB is a tight squeeze.
 - **Video upload fails / "Could not read any frames"** — make sure `opencv-python-headless`
   installed correctly and the video isn't corrupted; try a standard MP4 (H.264) first.
 - **Training accuracy stays near 50%** — check your `real`/`fake` folders aren't

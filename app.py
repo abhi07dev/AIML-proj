@@ -18,9 +18,18 @@ Model hosting (for Render.com / cloud deployments):
         HF_TOKEN        - only needed if the repo is private
 """
 import argparse
+import gc
 import io
 import os
 import tempfile
+
+# Cap BLAS/OpenMP thread pools BEFORE importing torch/cv2: torch defaults to one
+# thread per core, which is a huge memory overhead on small RAM instances (e.g.
+# Render free tier, 512MB) and provides no benefit for single-request inference.
+os.environ.setdefault('OMP_NUM_THREADS', '1')
+os.environ.setdefault('MKL_NUM_THREADS', '1')
+os.environ.setdefault('OPENBLAS_NUM_THREADS', '1')
+os.environ.setdefault('OMP_WAIT_POLICY', 'PASSIVE')
 
 import cv2
 import numpy as np
@@ -111,7 +120,10 @@ def load_model(checkpoint_path: str) -> None:
         _download_from_hf(checkpoint_path)
 
     m = DeepfakeDetector(pretrained=False).to(device)
-    ckpt = torch.load(checkpoint_path, map_location=device, weights_only=False)
+    # mmap=True loads tensors lazily from disk instead of reading the whole
+    # checkpoint into RAM (checkpoints contain ~2x optimizer state that is
+    # useless for inference). Critical on low-memory hosts.
+    ckpt = torch.load(checkpoint_path, map_location=device, weights_only=False, mmap=True)
     state_dict = ckpt['model_state_dict'] if isinstance(ckpt, dict) and 'model_state_dict' in ckpt else ckpt
     m.load_state_dict(state_dict)
     m.eval()
@@ -119,6 +131,8 @@ def load_model(checkpoint_path: str) -> None:
     print(f"Loaded checkpoint: {checkpoint_path}")
     if isinstance(ckpt, dict) and 'metrics' in ckpt:
         print(f"Checkpoint val metrics: {ckpt['metrics']}")
+    del ckpt
+    gc.collect()
 
 
 def predict_image(pil_img, threshold=0.5):
@@ -248,8 +262,9 @@ def predict_video_route():
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--checkpoint', required=True, help='Path to a trained .pt checkpoint (e.g. checkpoints/best_model.pt)')
-    ap.add_argument('--host', default='127.0.0.1')
-    ap.add_argument('--port', type=int, default=5000)
+    ap.add_argument('--host', default='0.0.0.0', help='Bind address (default 0.0.0.0 so cloud hosts can reach it)')
+    ap.add_argument('--port', type=int, default=int(os.environ.get('PORT', 5000)),
+                    help='Port to listen on (defaults to $PORT env var, else 5000)')
     ap.add_argument('--debug', action='store_true')
     args = ap.parse_args()
 
