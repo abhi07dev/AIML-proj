@@ -91,7 +91,6 @@ def _download_from_hf(checkpoint_path: str) -> None:
         filename=filename,
         token=token,
         local_dir=os.path.dirname(checkpoint_path),
-        local_dir_use_symlinks=False,
     )
     # hf_hub_download may save under a cache subdir; move to expected path.
     if os.path.abspath(local_path) != os.path.abspath(checkpoint_path):
