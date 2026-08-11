@@ -10,4 +10,3 @@
 *.png binary
 *.jpg binary
 *.pt binary
-checkpoints/best_model.pt filter=lfs diff=lfs merge=lfs -text

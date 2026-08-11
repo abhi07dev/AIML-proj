@@ -1,9 +1,8 @@
 # ── Dataset ──────────────────────────────────────────────────────────────────
 data/
 
-# ── Model checkpoints (large .pt files) ──────────────────────────────────────
+# ── Model checkpoints (large .pt files — fetched from HF Hub at runtime) ─────
 checkpoints/*.pt
-!checkpoints/best_model.pt
 
 # ── Python ───────────────────────────────────────────────────────────────────
 __pycache__/
