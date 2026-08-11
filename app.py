@@ -23,15 +23,16 @@ import io
 import os
 import tempfile
 
-# Cap BLAS/OpenMP thread pools BEFORE importing torch/cv2: torch defaults to one
-# thread per core, which is a huge memory overhead on small RAM instances (e.g.
-# Render free tier, 512MB) and provides no benefit for single-request inference.
+# Cap BLAS/OpenMP thread pools and force CPU-only mode BEFORE importing
+# torch/cv2: torch defaults to one thread per core and probes CUDA on import,
+# both of which are huge memory overheads on small RAM instances (e.g. Render
+# free tier, 512MB) and provide no benefit for single-request CPU inference.
 os.environ.setdefault('OMP_NUM_THREADS', '1')
 os.environ.setdefault('MKL_NUM_THREADS', '1')
 os.environ.setdefault('OPENBLAS_NUM_THREADS', '1')
 os.environ.setdefault('OMP_WAIT_POLICY', 'PASSIVE')
+os.environ.setdefault('CUDA_VISIBLE_DEVICES', '-1')
 
-import cv2
 import numpy as np
 import torch
 from flask import Flask, jsonify, request, send_from_directory
@@ -207,6 +208,10 @@ def predict_video_route():
     fd, tmp_path = tempfile.mkstemp(suffix=suffix)
     os.close(fd)
     file.save(tmp_path)
+
+    # Lazy import: cv2 pulls in ~100-150MB of RSS, only needed for video. Keeps
+    # startup (and image-only traffic) light on low-memory hosts.
+    import cv2
 
     cap = None
     try:

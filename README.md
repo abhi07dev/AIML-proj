@@ -208,6 +208,29 @@ For a high-traffic public deployment, put this behind a production WSGI server
 (e.g. `gunicorn`) and a reverse proxy (e.g. nginx), and don't run Flask's
 built-in dev server directly — happy to help set that up if/when you get there.
 
+### Deploying on Render (free tier, 512MB)
+
+PyPI's default `torch` wheel is the CUDA build — on a CPU-only Render instance
+it alone can exhaust the 512MB free-tier RAM (deploys die with
+`Exited with status 137` / `No open ports detected`). Fix the **Build Command**
+in the Render dashboard:
+
+```
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu && pip install -r requirements.txt
+```
+
+This installs the official CPU wheels (`... +cpu`), then `requirements.txt`
+installs the rest. Keep the **Start Command** as:
+
+```
+python app.py --checkpoint checkpoints/best_model.pt --host 0.0.0.0 --port $PORT
+```
+
+`app.py` already caps torch's thread pools, disables CUDA probing, lazy-loads
+the checkpoint with `mmap=True`, and imports OpenCV only for video requests to
+stay under the 512MB limit. If a deploy still OOMs, upgrade the instance to
+Standard (2GB) — the code changes still speed up startup either way.
+
 ---
 
 ## Troubleshooting
