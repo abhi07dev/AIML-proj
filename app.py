@@ -43,9 +43,21 @@ val_tfm = transforms.Compose([
 
 def load_model(checkpoint_path):
     global model
+    if not os.path.isabs(checkpoint_path):
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        checkpoint_path = os.path.join(base_dir, checkpoint_path)
+
+    if not os.path.exists(checkpoint_path) or os.path.getsize(checkpoint_path) < 1000:
+        print(f"Checkpoint missing or LFS pointer found at {checkpoint_path}. Attempting git lfs pull...")
+        try:
+            import subprocess
+            subprocess.run(['git', 'lfs', 'pull'], check=True)
+        except Exception as e:
+            print(f"git lfs pull warning: {e}")
+
     m = DeepfakeDetector(pretrained=False).to(device)
     ckpt = torch.load(checkpoint_path, map_location=device, weights_only=False)
-    state_dict = ckpt['model_state_dict'] if 'model_state_dict' in ckpt else ckpt
+    state_dict = ckpt['model_state_dict'] if isinstance(ckpt, dict) and 'model_state_dict' in ckpt else ckpt
     m.load_state_dict(state_dict)
     m.eval()
     model = m
