@@ -64,7 +64,7 @@ def _is_lfs_pointer(path: str) -> bool:
 
 def _download_from_hf(checkpoint_path: str) -> None:
     """Download the model from Hugging Face Hub into checkpoint_path."""
-    repo_id = os.environ.get('HF_MODEL_REPO', '')
+    repo_id = os.environ.get('HF_MODEL_REPO', '').strip()
     if not repo_id:
         raise RuntimeError(
             "Model checkpoint is an LFS pointer or missing, and HF_MODEL_REPO "
@@ -73,8 +73,10 @@ def _download_from_hf(checkpoint_path: str) -> None:
             "in your Render service environment variables."
         )
 
-    filename = os.environ.get('HF_MODEL_FILE', os.path.basename(checkpoint_path))
+    filename = os.environ.get('HF_MODEL_FILE', os.path.basename(checkpoint_path)).strip()
     token    = os.environ.get('HF_TOKEN', None)
+    if token:
+        token = token.strip()
 
     print(f"Downloading model from Hugging Face Hub: {repo_id}/{filename} ...")
     try:
