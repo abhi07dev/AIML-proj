@@ -7,6 +7,15 @@ Serves the frontend (index.html in the same directory as app.py) and two JSON en
 
 Run:
     python app.py --checkpoint checkpoints/best_model.pt
+
+Model hosting (for Render.com / cloud deployments):
+    Render.com does NOT support Git LFS, so the model is downloaded from
+    Hugging Face Hub at startup when the checkpoint file is missing or is
+    just an LFS pointer.  Set these environment variables in your Render
+    service dashboard:
+        HF_MODEL_REPO   - e.g.  abhi07dev/deepfake-detector
+        HF_MODEL_FILE   - e.g.  best_model.pt  (default)
+        HF_TOKEN        - only needed if the repo is private
 """
 import argparse
 import io
@@ -41,19 +50,64 @@ val_tfm = transforms.Compose([
 ])
 
 
-def load_model(checkpoint_path):
+def _is_lfs_pointer(path: str) -> bool:
+    """Return True if the file is a Git LFS pointer (tiny text stub, not the real binary)."""
+    try:
+        if os.path.getsize(path) > 1024:          # real .pt files are >> 1 KB
+            return False
+        with open(path, 'rb') as f:
+            header = f.read(12)
+        return header == b'version http'           # LFS pointer signature
+    except OSError:
+        return False
+
+
+def _download_from_hf(checkpoint_path: str) -> None:
+    """Download the model from Hugging Face Hub into checkpoint_path."""
+    repo_id = os.environ.get('HF_MODEL_REPO', '')
+    if not repo_id:
+        raise RuntimeError(
+            "Model checkpoint is an LFS pointer or missing, and HF_MODEL_REPO "
+            "environment variable is not set.  Please upload best_model.pt to a "
+            "Hugging Face model repository and set HF_MODEL_REPO=<owner>/<repo> "
+            "in your Render service environment variables."
+        )
+
+    filename = os.environ.get('HF_MODEL_FILE', os.path.basename(checkpoint_path))
+    token    = os.environ.get('HF_TOKEN', None)
+
+    print(f"Downloading model from Hugging Face Hub: {repo_id}/{filename} ...")
+    try:
+        from huggingface_hub import hf_hub_download
+    except ImportError:
+        raise RuntimeError(
+            "huggingface_hub is not installed.  Add 'huggingface_hub' to requirements.txt."
+        )
+
+    local_path = hf_hub_download(
+        repo_id=repo_id,
+        filename=filename,
+        token=token,
+        local_dir=os.path.dirname(checkpoint_path),
+        local_dir_use_symlinks=False,
+    )
+    # hf_hub_download may save under a cache subdir; move to expected path.
+    if os.path.abspath(local_path) != os.path.abspath(checkpoint_path):
+        import shutil
+        shutil.move(local_path, checkpoint_path)
+    print(f"Model downloaded to {checkpoint_path}")
+
+
+def load_model(checkpoint_path: str) -> None:
     global model
     if not os.path.isabs(checkpoint_path):
         base_dir = os.path.dirname(os.path.abspath(__file__))
         checkpoint_path = os.path.join(base_dir, checkpoint_path)
 
-    if not os.path.exists(checkpoint_path) or os.path.getsize(checkpoint_path) < 1000:
-        print(f"Checkpoint missing or LFS pointer found at {checkpoint_path}. Attempting git lfs pull...")
-        try:
-            import subprocess
-            subprocess.run(['git', 'lfs', 'pull'], check=True)
-        except Exception as e:
-            print(f"git lfs pull warning: {e}")
+    # Render.com clones repos without resolving LFS pointers — detect and fix.
+    if not os.path.exists(checkpoint_path) or _is_lfs_pointer(checkpoint_path):
+        print(f"Checkpoint missing or is an LFS pointer at {checkpoint_path}.")
+        _download_from_hf(checkpoint_path)
 
     m = DeepfakeDetector(pretrained=False).to(device)
     ckpt = torch.load(checkpoint_path, map_location=device, weights_only=False)
