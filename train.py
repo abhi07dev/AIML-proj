@@ -185,7 +185,12 @@ def run_epoch(model, loader, criterion, optimizer=None, scaler=None, device='cud
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--data_root', required=True, help='Folder containing train/ and val/ (each with real/ and fake/)')
-    ap.add_argument('--epochs', type=int, default=10)
+    ap.add_argument('--epochs', type=int, default=10,
+                    help='Total target epoch number. When resuming, training continues from the checkpoint '
+                         'epoch + 1 up to this value (e.g. resume at epoch 3 with --epochs 20 trains 4..20)')
+    ap.add_argument('--resume', default=None,
+                    help='Path to a checkpoint (e.g. checkpoints/checkpoint_epoch003.pt) to continue training '
+                         'from. Restores model, optimizer, AMP scaler, history, best AUC and early-stopping state.')
     ap.add_argument('--batch_size', type=int, default=32)
     ap.add_argument('--lr', type=float, default=1e-4)
     ap.add_argument('--weight_decay', type=float, default=1e-4)
@@ -231,12 +236,34 @@ def main():
     history = {'train': [], 'val': []}
     best_auc = 0.0
     patience_c = 0
+    start_epoch = 1
+
+    if args.resume:
+        ckpt = torch.load(args.resume, map_location=device, weights_only=False)
+        model.load_state_dict(ckpt['model_state_dict'])
+        optimizer.load_state_dict(ckpt['optimizer_state_dict'])
+        if 'scaler_state_dict' in ckpt:
+            scaler.load_state_dict(ckpt['scaler_state_dict'])
+        start_epoch = int(ckpt.get('epoch', 0)) + 1
+        history = ckpt.get('history', history)
+        best_auc = float(ckpt.get('best_auc', 0.0))
+        patience_c = int(ckpt.get('patience_counter', 0))
+        if start_epoch >= args.warmup_epochs + 1:
+            for p in model.spatial_backbone.parameters():
+                p.requires_grad = True
+        if start_epoch > args.epochs:
+            raise ValueError(
+                f"Checkpoint is already at epoch {start_epoch - 1} but --epochs is {args.epochs}. "
+                f"Raise --epochs to continue."
+            )
+        print(f"Resumed from epoch {start_epoch - 1} | continuing to epoch {args.epochs}")
+        print(f"  Resumed best AUC: {best_auc:.4f} | patience: {patience_c}/{args.patience}")
 
     print(f"Starting training on {device}")
     print(f"Epochs: {args.epochs} | Batch: {args.batch_size} | LR: {args.lr}")
     print("-" * 70)
 
-    for epoch in range(1, args.epochs + 1):
+    for epoch in range(start_epoch, args.epochs + 1):
         if epoch == args.warmup_epochs + 1:
             for p in model.spatial_backbone.parameters():
                 p.requires_grad = True
@@ -251,6 +278,11 @@ def main():
 
         elapsed = time.time() - t0
         is_best = val_m['auc'] > best_auc
+        if is_best:
+            best_auc = val_m['auc']
+            patience_c = 0
+        else:
+            patience_c += 1
 
         print(
             f"Epoch {epoch:3d}/{args.epochs} ({elapsed:.0f}s) | "
@@ -261,14 +293,16 @@ def main():
         )
 
         ckpt = {'epoch': epoch, 'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(), 'metrics': val_m}
+                'optimizer_state_dict': optimizer.state_dict(),
+                'scaler_state_dict': scaler.state_dict(),
+                'history': history,
+                'best_auc': best_auc,
+                'patience_counter': patience_c,
+                'warmup_epochs': args.warmup_epochs,
+                'metrics': val_m}
         torch.save(ckpt, f'{args.save_dir}/checkpoint_epoch{epoch:03d}.pt')
         if is_best:
-            best_auc = val_m['auc']
             torch.save(ckpt, f'{args.save_dir}/best_model.pt')
-            patience_c = 0
-        else:
-            patience_c += 1
 
         if patience_c >= args.patience:
             print(f"\nEarly stopping after epoch {epoch}")

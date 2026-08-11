@@ -79,7 +79,8 @@ python train.py --data_root /path/to/your_dataset --epochs 10 --batch_size 32
 Useful flags:
 | Flag | Default | Purpose |
 |---|---|---|
-| `--epochs` | 10 | training epochs |
+| `--epochs` | 10 | **total** target epoch; when resuming, training continues from checkpoint epoch + 1 up to this value |
+| `--resume` | none | path to `checkpoints/checkpoint_epochNNN.pt` to continue training from (restores model, optimizer, AMP scaler, history, best AUC, early stopping) |
 | `--batch_size` | 32 | lower this if you hit out-of-memory errors |
 | `--lr` | 1e-4 | learning rate for the classifier head (backbone uses 10% of this) |
 | `--warmup_epochs` | 2 | epochs before the backbone unfreezes |
@@ -100,6 +101,30 @@ Once that finishes without errors, launch the real run. This writes:
 
 Training time depends entirely on dataset size and GPU. As a reference point, a few
 thousand images per class on a single mid-range GPU is typically minutes-to-an-hour per epoch.
+
+### Training across multiple sessions (pause and resume)
+
+If one sitting isn't enough, stop after any epoch (Ctrl+C between epochs is fine — a
+checkpoint is written after every epoch) and pick up later with `--resume`. `--epochs` is
+always the **total** target epoch:
+
+```bash
+# Session 1 — trains epochs 1..10
+python train.py --data_root /path/to/your_dataset --epochs 10
+
+# Session 2 (later) — continues epochs 11..20
+python train.py --data_root /path/to/your_dataset --epochs 20 --resume checkpoints/checkpoint_epoch010.pt
+
+# Session 3 (even later) — continues epochs 21..30
+python train.py --data_root /path/to/your_dataset --epochs 30 --resume checkpoints/checkpoint_epoch020.pt
+```
+
+Notes:
+- Use the **same `--data_root`, `--batch_size`, `--img_size`** every session so the data
+  pipeline matches the checkpoint.
+- `--lr` and the backbone-freeze schedule are restored from the checkpoint; command-line
+  values are ignored for the resumed state.
+- Early stopping and `best_model.pt` tracking continue seamlessly across sessions.
 
 ---
 
