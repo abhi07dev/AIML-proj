@@ -1,5 +1,10 @@
-torch>=2.3.0
-torchvision>=0.18.0
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.13.0+cpu; sys_platform == 'linux'
+torch==2.13.0; sys_platform == 'win32'
+torch>=2.3.0; sys_platform == 'darwin'
+torchvision==0.28.0+cpu; sys_platform == 'linux'
+torchvision==0.28.0; sys_platform == 'win32'
+torchvision>=0.18.0; sys_platform == 'darwin'
 flask>=3.0.0
 opencv-python-headless>=4.9.0
 scikit-learn>=1.3.0
@@ -7,3 +12,4 @@ Pillow>=10.0.0
 numpy>=1.24.0
 tqdm>=4.66.0
 huggingface_hub>=0.23.0
+streamlit>=1.30.0

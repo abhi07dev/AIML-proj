@@ -210,17 +210,16 @@ built-in dev server directly — happy to help set that up if/when you get there
 
 ### Deploying on Render (free tier, 512MB)
 
-PyPI's default `torch` wheel is the CUDA build — on a CPU-only Render instance
-it alone can exhaust the 512MB free-tier RAM (deploys die with
-`Exited with status 137` / `No open ports detected`). Fix the **Build Command**
-in the Render dashboard:
+`requirements.txt` now pins the CPU-only torch build on Linux
+(`torch==2.13.0+cpu`, via the PyTorch CPU index), so a plain
+`pip install -r requirements.txt` Build Command is enough. If you have an older
+deploy with the explicit CPU-index Build Command, it's harmless to keep:
 
 ```
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu && pip install -r requirements.txt
 ```
 
-This installs the official CPU wheels (`... +cpu`), then `requirements.txt`
-installs the rest. Keep the **Start Command** as:
+Keep the **Start Command** as:
 
 ```
 python app.py --checkpoint checkpoints/best_model.pt --host 0.0.0.0 --port $PORT
@@ -230,6 +229,34 @@ python app.py --checkpoint checkpoints/best_model.pt --host 0.0.0.0 --port $PORT
 the checkpoint with `mmap=True`, and imports OpenCV only for video requests to
 stay under the 512MB limit. If a deploy still OOMs, upgrade the instance to
 Standard (2GB) — the code changes still speed up startup either way.
+
+### Deploying on Streamlit Community Cloud (free, 2 vCPU / ~1GB)
+
+The repo ships a Streamlit front-end (`streamlit_app.py`) that reuses the same
+model and prediction code as the Flask app. To deploy:
+
+1. Upload `checkpoints/best_model.pt` to a Hugging Face model repo, e.g.
+   `abhi07dev/deepfake-detector` (the checkpoint is gitignored, so the cloud
+   app downloads it from HF Hub at first startup).
+2. https://streamlit.io/cloud → **New app** → repo `abhi07dev/AIML-proj`,
+   branch `main`, **Main file path: `streamlit_app.py`**, Python 3.11/3.12 →
+   Deploy.
+3. In the deployed app's **Settings → Secrets**, add:
+
+   ```
+   HF_MODEL_REPO = "abhi07dev/deepfake-detector"
+   ```
+
+   (`HF_TOKEN = "hf_..."` only if the model repo is private.)
+4. Your app is live at `https://<your-app>.streamlit.app`. The free tier sleeps
+   after inactivity and wakes on the next visit; CPU-only torch (pinned in
+   `requirements.txt` for Linux) keeps cold starts fast and RAM low.
+
+To run the Streamlit app locally:
+
+```bash
+streamlit run streamlit_app.py
+```
 
 ---
 
