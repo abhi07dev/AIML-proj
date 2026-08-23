@@ -36,3 +36,6 @@ Thumbs.db
 # ── Uploads / temp files ─────────────────────────────────────────────────────
 uploads/
 *.tmp
+
+# ── Docs (auto-generated, excluded from repo) ────────────────────────────────
+docs/

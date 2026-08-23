@@ -197,7 +197,7 @@ def main():
     ap.add_argument('--warmup_epochs', type=int, default=2)
     ap.add_argument('--patience', type=int, default=5)
     ap.add_argument('--img_size', type=int, default=224)
-    ap.add_argument('--num_workers', type=int, default=2)
+    ap.add_argument('--num_workers', type=int, default=4)
     ap.add_argument('--max_train', type=int, default=None, help='Cap on training samples, for a quick smoke test')
     ap.add_argument('--save_dir', default='checkpoints')
     args = ap.parse_args()
@@ -216,9 +216,11 @@ def main():
 
     sampler = WeightedRandomSampler(train_ds.get_weights(), len(train_ds), replacement=True)
     train_loader = DataLoader(train_ds, args.batch_size, sampler=sampler,
-                               num_workers=args.num_workers, pin_memory=True, drop_last=True)
+                               num_workers=args.num_workers, pin_memory=True, drop_last=True,
+                               persistent_workers=args.num_workers > 0)
     val_loader = DataLoader(val_ds, args.batch_size, shuffle=False,
-                             num_workers=args.num_workers, pin_memory=True)
+                             num_workers=args.num_workers, pin_memory=True,
+                             persistent_workers=args.num_workers > 0)
     print(f"DataLoaders ready | Train batches: {len(train_loader)} | Val batches: {len(val_loader)}")
 
     model = DeepfakeDetector(pretrained=True, freeze_layers=3).to(device)
